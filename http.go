@@ -6,8 +6,21 @@ import(
     "log"
 )
 
-// To Try: AF_UNSPEC
+func getpeer(nfd int) (Addr [4]byte, Port int, err error){
+  peer, err := syscall.Getpeername(nfd)
+  if err != nil{
+    log.Fatal(err)
+  }
+  peer_data, ok := peer.(*syscall.SockaddrInet4)
+  if !ok {
+     return [4]byte{}, 0, fmt.Errorf("unexpected address type")
+  }
+  Addr = peer_data.Addr
+  Port = peer_data.Port
+  return Addr, Port, nil
+}
 
+// To Try: AF_UNSPEC
 func main() {
   fd, sock_err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
   if sock_err != nil{
@@ -34,14 +47,26 @@ func main() {
         log.Fatal(accept_err)
     }
 
-    peer_name, _ := syscall.Getpeername(nfd)
-    fmt.Println(peer_name)
+    addr, port, getPeerErr := getpeer(nfd)
+    if getPeerErr != nil {
+      log.Println("Getpeername error:", getPeerErr)
+    } else {
+      fmt.Printf("Client connected: %v:%d\n", addr, port)
+    }
 
-    response := "Hey Mon Chachos"
+    response := "HTTP/1.1 200 OK\r\n" +
+    "Content-Type: text/plain\r\n" +
+    "Content-Length: 14\r\n" +
+    "\r\n" +
+    "Hey Mon Chachos"
+
     _, msg_err := syscall.Write(nfd, []byte(response))
     if msg_err != nil{
         log.Fatal(msg_err)
+        syscall.Close(nfd)
     }
+
     syscall.Close(nfd)
+    
   }
 }
