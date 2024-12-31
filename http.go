@@ -1,3 +1,12 @@
+/*
+TODO
+Maintain the connection open for multiple requests unless the Connection: close header is present.
+Read the request line and headers.
+Ensure the presence of mandatory headers like Host.
+Generate responses based on parsed requests, including proper headers like Content-Type and Content-Length.
+Support at least the common HTTP methods (GET, POST, etc.).
+Send appropriate HTTP error codes (400 Bad Request, 404 Not Found, etc.) when necessary.
+*/
 package main
 
 import(
