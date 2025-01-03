@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple HTML Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .navbar {
+            background-color: #333;
+            overflow: hidden;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 1em;
+        }
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5em 1em;
+        }
+        .navbar a:hover {
+            background-color: #575757;
+            border-radius: 5px;
+        }
+        .content {
+            padding: 2em;
+            text-align: center;
+            font-size: 1.5em;
+        }
+        .content img {
+            margin-top: 1em;
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="#about" onclick="showAbout()">About</a>
+    </div>
+    <div class="content">
+        <p>Hey Mon Cha Chaco</p>
+        <img src="hey.jpg" alt="Descriptive Text for Image">
+    </div>
+
+    <script>
+        function showAbout() {
+            alert('About button clicked!');
+        }
+    </script>
+</body>
+</html>
+
