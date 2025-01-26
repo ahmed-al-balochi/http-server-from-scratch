@@ -1,11 +1,7 @@
 /*
 TODO
-Read the request line and headers.
+Need to make better error handling and logging.
 Maintain the connection open for multiple requests unless the Connection: close header is present.
-Ensure the presence of mandatory headers like Host.
-Generate responses based on parsed requests, including proper headers like Content-Type and Content-Length.
-Support at least the common HTTP methods (GET, POST, etc.).
-Send appropriate HTTP error codes (400 Bad Request, 404 Not Found, etc.) when necessary.
 */
 package main
 
@@ -21,15 +17,16 @@ import(
 
 
 
-func send_img(conn_socket int) error{
-  img_file, err := os.ReadFile("hey.jpg")
+func send_img(conn_socket int, path string) error{
+  img_file, err := os.ReadFile(path)
   if err != nil{
     body :="Internal Sever error while loading the img file"
-    send_msg("500", body, "close", conn_socket)
+    send_msg("500 Internal Server Error", body, "close", conn_socket)
     return errors.New("Internal Sever error while loading the img file")
   }
 
   response := fmt.Sprintf("HTTP/1.1 200 OK\r\n" +
+    "Host: www.monchaco.tech-ahmed.com\r\n" +
     "Content-Type: img/jpg\r\n" +
     "Content-Length: %d\r\n" +
     "Connection: close\r\n" +
@@ -45,17 +42,18 @@ func send_img(conn_socket int) error{
     }
   }
   return nil
-} 
+}
 
-func send_html(conn_socket int) error{
-  html_file, err := os.ReadFile("index.html")
+func send_html(conn_socket int, path string) error{
+  html_file, err := os.ReadFile(path)
   if err != nil{
     body :="Internal Sever error while loading the HTML file"
-    send_msg("500", body, "close", conn_socket)
+    send_msg("500 Internal Server Error", body, "close", conn_socket)
     return errors.New("Internal Sever error while loading the HTML file")
   }
 
   response := fmt.Sprintf("HTTP/1.1 200 OK\r\n" +
+    "Host: www.monchaco.tech-ahmed.com\r\n" +
     "Content-Type: text/html\r\n" +
     "Content-Length: %d\r\n" +
     "Connection: close\r\n" +
@@ -76,7 +74,7 @@ func send_html(conn_socket int) error{
 func send_msg(code string, body string, conn_state string, conn_socket int) error{
   body_len := strconv.Itoa(len(body))
 
-  response := "HTTP/1.1 " + code + " OK\r\n" +
+  response := "HTTP/1.1 " + code + "\r\n" +
   "Content-Type: text/plain\r\n" +
   "Content-Length: " + body_len + "\r\n" +
   "Connection: " + conn_state  + "\r\n" +
@@ -158,6 +156,10 @@ func read_request(conn_socket int, buf []byte, length int) error{
   connection, after_conn, _ := strings.Cut(after_enc,"Upgrade")
   _, priority, _ := strings.Cut(after_conn,"Priority")
 
+  if (host == ""){
+    return errors.New("Host header is empty, closing socket!")
+  }
+
   if strings.EqualFold(strings.TrimSpace(connection), "close"){
     return errors.New("Connection close received!")
   }
@@ -176,15 +178,19 @@ func read_request(conn_socket int, buf []byte, length int) error{
   fmt.Println("connection"+connection)
   fmt.Println("Priority"+priority)
 
-  if strings.HasPrefix(path, "GET /index.html") {
-      return send_html(conn_socket)
-  } else if strings.HasPrefix(path, "GET /hey.jpg") {
-      return send_img(conn_socket)
+  if strings.EqualFold(strings.TrimSpace(path), "GET /") {
+      return send_html(conn_socket, "pages/index.html")
+  }else if strings.EqualFold(strings.TrimSpace(path), "GET /hey.jpg") {
+      return send_img(conn_socket, "pages/img/hey.jpg")
+  } else if strings.EqualFold(strings.TrimSpace(path), "GET /about") {
+      return send_html(conn_socket, "pages/about.html")
+  } else if strings.EqualFold(strings.TrimSpace(path), "GET /prime.jpg") {
+      return send_img(conn_socket, "pages/img/prime.jpg")
+  } else {
+      send_msg("404 Not Found", "Page doesn't exist", "close", conn_socket)
+      return errors.New("404 Not Found, page doesn't exist")
   }
 
-   //body := "Do you smell what The Rock is cooking!"
-   //send_msg("200", body, "close", conn_socket)
-   send_html(conn_socket)
   return nil 
 }
 
@@ -198,7 +204,7 @@ func main() {
   }
 
   sa.Port = 3232
-  sa.Addr = [4]byte{127,0,0,1}
+  sa.Addr = [4]byte{192,168,100,74}
   bind_err := syscall.Bind(socket, &sa)
   if bind_err != nil{
     log.Fatal(bind_err)
@@ -208,7 +214,7 @@ func main() {
   if listen_err != nil{
     log.Fatal(listen_err)
   }
-  fmt.Println("Server is listening on 192.168.100.43")
+  fmt.Println("Server is listening on 192.168.100.74")
 
   for {
     connection_socket, _, accept_err := syscall.Accept(socket)
