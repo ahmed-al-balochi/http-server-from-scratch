@@ -22,7 +22,7 @@ func send_img(conn_socket int, path string) error{
   if err != nil{
     body :="Internal Sever error while loading the img file"
     send_msg("500 Internal Server Error", body, "close", conn_socket)
-    return errors.New("Internal Sever error while loading the img file")
+    return errors.New("ERROR: Internal Sever error while loading the img file")
   }
 
   response := fmt.Sprintf("HTTP/1.1 200 OK\r\n" +
@@ -36,7 +36,7 @@ func send_img(conn_socket int, path string) error{
   _, msg_err := syscall.Write(conn_socket, []byte(response))
   if msg_err != nil {
     if msg_err == syscall.EPIPE {
-      return errors.New("Broken pipe: Client has disconnected.")
+      return errors.New("ERROR: Broken pipe: Client has disconnected.")
     }else {
       return msg_err
     }
@@ -49,7 +49,7 @@ func send_html(conn_socket int, path string) error{
   if err != nil{
     body :="Internal Sever error while loading the HTML file"
     send_msg("500 Internal Server Error", body, "close", conn_socket)
-    return errors.New("Internal Sever error while loading the HTML file")
+    return errors.New("ERROR: Internal Sever error while loading the HTML file")
   }
 
   response := fmt.Sprintf("HTTP/1.1 200 OK\r\n" +
@@ -63,7 +63,7 @@ func send_html(conn_socket int, path string) error{
   _, msg_err := syscall.Write(conn_socket, []byte(response))
   if msg_err != nil {
     if msg_err == syscall.EPIPE {
-      return errors.New("Broken pipe: Client has disconnected.")
+      return errors.New("ERROR: Broken pipe: Client has disconnected.")
     }else {
       return msg_err
     }
@@ -84,7 +84,7 @@ func send_msg(code string, body string, conn_state string, conn_socket int) erro
   _, msg_err := syscall.Write(conn_socket, []byte(response))
   if msg_err != nil {
     if msg_err == syscall.EPIPE {
-      return errors.New("Broken pipe: Client has disconnected.")
+      return errors.New("ERROR: Broken pipe: Client has disconnected.")
     }else {
       return msg_err
     }
@@ -99,7 +99,7 @@ func get_peer(conn_socket int) (Addr [4]byte, Port int, err error){
   }
   peer_data, ok := peer.(*syscall.SockaddrInet4)
   if !ok {
-     return [4]byte{}, 0, fmt.Errorf("unexpected address type")
+   return [4]byte{}, 0, errors.New("ERROR: unexpected address type")
   }
   Addr = peer_data.Addr
   Port = peer_data.Port
@@ -113,7 +113,7 @@ func client_handler(conn_socket int){
    length, _, recv_err := syscall.Recvfrom(conn_socket, recv_buf, 0)
 
    if recv_err != nil{
-      log.Print(recv_err)
+      log.Print("ERROR: ", recv_err)
    }
 
    if length == 0{
@@ -127,7 +127,7 @@ func client_handler(conn_socket int){
    }else{
       err := read_request(conn_socket, recv_buf, length)
       if err != nil{
-        log.Print(err)
+        log.Print("ERROR: ", err)
 	body := "Detected an error, closing connection..."
         send_msg("400", body, "close", conn_socket)
         break
@@ -142,59 +142,48 @@ func read_request(conn_socket int, buf []byte, length int) error{
   var builder strings.Builder
   _, err := builder.Write(buf[:length])
   if err != nil {
-    return errors.New("Error writing to builder")
+    return errors.New("ERROR: Error writing to builder")
   }
   req_str := builder.String()
+  //fmt.Printf("This is the headers: ", req_str)
+  lines := strings.Split(req_str, "\n")
 
-  path, after_path, _ := strings.Cut(req_str,"HTTP")
-  ver, after_ver, _ := strings.Cut(after_path,"Host")
-  host, after_host, _ := strings.Cut(after_ver,"User")
-  user, after_user, _ := strings.Cut(after_host,"Accept")
-  accept, after_accept, _ := strings.Cut(after_user,"Accept")
-  lang, after_lang, _ := strings.Cut(after_accept,"Accept")
-  encoding, after_enc, _ := strings.Cut(after_lang,"Connection:")
-  connection, after_conn, _ := strings.Cut(after_enc,"Upgrade")
-  _, priority, _ := strings.Cut(after_conn,"Priority")
+  for _, line := range lines {
+     line = strings.TrimSpace(line)
 
-  if (host == ""){
-    return errors.New("Host header is empty, closing socket!")
+     switch line {
+       case "GET / HTTP/1.1":
+	 log.Println("INFO:" + line)
+         return send_html(conn_socket, "pages/index.html")
+       case "GET /hey.jpg HTTP/1.1":
+	 log.Println("INFO:" + line)
+         return send_img(conn_socket, "pages/img/hey.jpg")
+       case "GET /about HTTP/1.1":
+	 log.Println("INFO:" + line)
+         return send_html(conn_socket, "pages/about.html")
+       case "GET /prime.jpg HTTP/1.1":
+	 log.Println("INFO:" + line)
+         return send_img(conn_socket, "pages/img/prime.jpg")
+       case "Connection: close":
+	 log.Println("INFO:" + line)
+         return errors.New("ERROR: Connection close received!")
+       default:
+         send_msg("404 Not Found", "Page doesn't exist", "close", conn_socket)
+         return errors.New("ERROR: 404 Not Found, page doesn't exist")
+     }
   }
+  
+  //if (host == ""){
+   // return errors.New("ERROR: Host header is empty, closing socket!")
+ // }
 
-  if strings.EqualFold(strings.TrimSpace(connection), "close"){
-    return errors.New("Connection close received!")
-  }
-
-  if !strings.Contains(strings.TrimSpace(ver), "/1.1"){
-    return errors.New("This Server expects HTTP/1.1!")
-  }
-
-  fmt.Printf(path)
-  fmt.Println("HTTP"+ver)
-  fmt.Println("Host"+host)
-  fmt.Println("User"+user)
-  fmt.Println("Accept"+accept)
-  fmt.Println("Accept"+lang)
-  fmt.Println("Accept"+encoding)
-  fmt.Println("connection"+connection)
-  fmt.Println("Priority"+priority)
-
-  if strings.EqualFold(strings.TrimSpace(path), "GET /") {
-      return send_html(conn_socket, "pages/index.html")
-  }else if strings.EqualFold(strings.TrimSpace(path), "GET /hey.jpg") {
-      return send_img(conn_socket, "pages/img/hey.jpg")
-  } else if strings.EqualFold(strings.TrimSpace(path), "GET /about") {
-      return send_html(conn_socket, "pages/about.html")
-  } else if strings.EqualFold(strings.TrimSpace(path), "GET /prime.jpg") {
-      return send_img(conn_socket, "pages/img/prime.jpg")
-  } else {
-      send_msg("404 Not Found", "Page doesn't exist", "close", conn_socket)
-      return errors.New("404 Not Found, page doesn't exist")
+  if !strings.Contains(strings.TrimSpace(req_str), "/1.1"){
+    return errors.New("ERROR: This Server expects HTTP/1.1!")
   }
 
   return nil 
 }
 
-// To Try: AF_UNSPEC
 func main() {
   var sa syscall.SockaddrInet4
 
@@ -204,7 +193,7 @@ func main() {
   }
 
   sa.Port = 3232
-  sa.Addr = [4]byte{192,168,100,74}
+  sa.Addr = [4]byte{127,0,0,1}
   bind_err := syscall.Bind(socket, &sa)
   if bind_err != nil{
     log.Fatal(bind_err)
@@ -214,19 +203,19 @@ func main() {
   if listen_err != nil{
     log.Fatal(listen_err)
   }
-  fmt.Println("Server is listening on 192.168.100.74")
+  log.Println("INFO: Server is listening on 127.0.0.1")
 
   for {
     connection_socket, _, accept_err := syscall.Accept(socket)
     if accept_err != nil{
-        log.Fatal(accept_err)
+        errors.New("ERROR: Failed to accept the connection, please try again")
     }
 
     addr, port, getPeerErr := get_peer(connection_socket)
     if getPeerErr != nil {
-      log.Println("Getpeername error:", getPeerErr)
+	    log.Println("ERROR: Getpeername error:", getPeerErr)
     } else {
-      fmt.Println("Client connected: ", addr, port)
+	    log.Println("INFO: Client connected: ", addr, port)
     }
 
     go client_handler(connection_socket)
