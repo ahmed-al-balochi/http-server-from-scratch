@@ -1,8 +1,3 @@
-/*
-TODO
-Need to make better error handling and logging.
-Maintain the connection open for multiple requests unless the Connection: close header is present.
-*/
 package main
 
 import(
@@ -14,8 +9,6 @@ import(
     "strconv"
     "os"
 )
-
-
 
 func send_img(conn_socket int, path string) error{
   img_file, err := os.ReadFile(path)
@@ -145,16 +138,21 @@ func read_request(conn_socket int, buf []byte, length int) error{
     return errors.New("ERROR: Error writing to builder")
   }
   req_str := builder.String()
-  //fmt.Printf("This is the headers: ", req_str)
   lines := strings.Split(req_str, "\n")
 
   for _, line := range lines {
      line = strings.TrimSpace(line)
 
      switch line {
+       case "Connection: close":
+	 log.Println("INFO:" + line)
+         return errors.New("ERROR: Connection close received!")
        case "GET / HTTP/1.1":
 	 log.Println("INFO:" + line)
          return send_html(conn_socket, "pages/index.html")
+       case "GET /favicon.ico HTTP/1.1":
+	 log.Println("INFO:" + line)
+         return send_img(conn_socket, "pages/img/favicon.ico")
        case "GET /hey.jpg HTTP/1.1":
 	 log.Println("INFO:" + line)
          return send_img(conn_socket, "pages/img/hey.jpg")
@@ -164,19 +162,13 @@ func read_request(conn_socket int, buf []byte, length int) error{
        case "GET /prime.jpg HTTP/1.1":
 	 log.Println("INFO:" + line)
          return send_img(conn_socket, "pages/img/prime.jpg")
-       case "Connection: close":
-	 log.Println("INFO:" + line)
-         return errors.New("ERROR: Connection close received!")
        default:
+	 log.Println("ERROR:" + line)
          send_msg("404 Not Found", "Page doesn't exist", "close", conn_socket)
          return errors.New("ERROR: 404 Not Found, page doesn't exist")
      }
   }
   
-  //if (host == ""){
-   // return errors.New("ERROR: Host header is empty, closing socket!")
- // }
-
   if !strings.Contains(strings.TrimSpace(req_str), "/1.1"){
     return errors.New("ERROR: This Server expects HTTP/1.1!")
   }
